@@ -1,76 +1,248 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>GPS con Audio</title>
-    <style>
-        body {
-            font-family: Arial;
-            text-align: center;
-        }
-        button {
-            font-size: 20px;
-            padding: 10px 20px;
-        }
-        iframe {
-            width: 90%;
-            height: 400px;
-            border: 2px solid black;
-            margin-top: 15px;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Localizador con Voz</title>
+
+<style>
+
+body{
+font-family: Arial;
+text-align:center;
+background: linear-gradient(135deg,#c7f7d4,#cfe9ff);
+margin:0;
+}
+
+#inicio{
+margin-top:200px;
+}
+
+button{
+padding:14px 28px;
+font-size:18px;
+background:#7edbb5;
+border:none;
+border-radius:10px;
+cursor:pointer;
+margin:8px;
+}
+
+#app{
+display:none;
+margin-top:40px;
+}
+
+.info{
+font-size:18px;
+margin:5px;
+}
+
+iframe{
+margin-top:20px;
+border-radius:10px;
+}
+
+</style>
 </head>
+
 <body>
 
-<h1>GPS con Audio</h1>
+<div id="inicio">
 
-<button onclick="iniciar()">▶ SABER DÓNDE ESTOY</button>
+<h1>🌎 Asistente de ubicación</h1>
 
-<p id="texto"></p>
+<p id="saludo">Di tu nombre</p>
 
-<!-- MAPA -->
-<iframe id="mapa"></iframe>
+<button onclick="decirNombre()">Decir mi nombre 🎤</button>
+
+<br><br>
+
+<button onclick="empezar()">Empezar</button>
+
+</div>
+
+
+<div id="app">
+
+<h2 id="bienvenida"></h2>
+
+<div class="info" id="direccion"></div>
+
+<br>
+
+<button onclick="ubicar()">Saber dónde estoy</button>
+
+<br><br>
+
+<h3>Destino</h3>
+
+<button onclick="decirDestino()">Decir destino 🎤</button>
+
+<div id="distancia"></div>
+
+<div id="mapa"></div>
+
+</div>
+
 
 <script>
-function hablar(texto) {
-    const voz = new SpeechSynthesisUtterance(texto);
-    voz.lang = "es-MX";
-    speechSynthesis.speak(voz);
+
+let nombre = "";
+let latUsuario;
+let lonUsuario;
+
+function hablar(texto){
+
+let voz = new SpeechSynthesisUtterance(texto);
+voz.lang="es-MX";
+speechSynthesis.speak(voz);
+
 }
 
-function iniciar() {
-    hablar("Obteniendo tu ubicación");
 
-    navigator.geolocation.getCurrentPosition(
-        function(posicion) {
-            const lat = posicion.coords.latitude;
-            const lon = posicion.coords.longitude;
+function empezar(){
 
-            obtenerDireccion(lat, lon);
-            mostrarMapa(lat, lon);
-        },
-        function() {
-            hablar("No se pudo obtener tu ubicación");
-        }
-    );
+document.getElementById("inicio").style.display="none";
+document.getElementById("app").style.display="block";
+
+document.getElementById("bienvenida").innerHTML="Hola "+nombre;
+
 }
 
-function obtenerDireccion(lat, lon) {
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
-        .then(res => res.json())
-        .then(data => {
-            const direccion = data.display_name;
-            document.getElementById("texto").innerText = direccion;
 
-            hablar("Te encuentras en");
-            hablar(direccion);
-        });
+function decirNombre(){
+
+let reconocimiento = new webkitSpeechRecognition();
+reconocimiento.lang="es-MX";
+
+reconocimiento.onresult=function(event){
+
+nombre = event.results[0][0].transcript;
+
+document.getElementById("saludo").innerHTML="Hola "+nombre;
+
+hablar("Hola "+nombre);
+
 }
 
-function mostrarMapa(lat, lon) {
-    const url = `https://www.openstreetmap.org/export/embed.html?bbox=${lon-0.005},${lat-0.005},${lon+0.005},${lat+0.005}&layer=mapnik&marker=${lat},${lon}`;
-    document.getElementById("mapa").src = url;
+reconocimiento.start();
+
 }
+
+
+
+function ubicar(){
+
+navigator.geolocation.getCurrentPosition(function(pos){
+
+latUsuario = pos.coords.latitude;
+lonUsuario = pos.coords.longitude;
+
+fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latUsuario}&lon=${lonUsuario}&format=json`)
+.then(res => res.json())
+.then(data => {
+
+let d=data.address;
+
+let calle=d.road||"";
+let ciudad=d.city||d.town||d.village||d.municipality||"";
+let estado=d.state||"";
+let pais=d.country||"";
+
+let direccion = calle+", "+ciudad+", "+estado+", "+pais;
+
+document.getElementById("direccion").innerHTML=direccion;
+
+hablar("Estás en "+direccion);
+
+
+document.getElementById("mapa").innerHTML=
+`<iframe width="600" height="350"
+src="https://www.openstreetmap.org/export/embed.html?bbox=${lonUsuario-0.01}%2C${latUsuario-0.01}%2C${lonUsuario+0.01}%2C${latUsuario+0.01}&layer=mapnik&marker=${latUsuario}%2C${lonUsuario}">
+</iframe>`;
+
+});
+
+});
+
+}
+
+
+
+function decirDestino(){
+
+let reconocimiento = new webkitSpeechRecognition();
+reconocimiento.lang="es-MX";
+
+reconocimiento.onresult=function(event){
+
+let destino = event.results[0][0].transcript;
+
+buscarDestino(destino);
+
+}
+
+reconocimiento.start();
+
+}
+
+
+
+function buscarDestino(lugar){
+
+fetch(`https://nominatim.openstreetmap.org/search?q=${lugar}&format=json`)
+.then(res => res.json())
+.then(data => {
+
+if(data.length==0){
+
+hablar("No encontré ese lugar");
+return;
+
+}
+
+let latDestino = data[0].lat;
+let lonDestino = data[0].lon;
+
+let distancia = calcularDistancia(
+latUsuario,
+lonUsuario,
+latDestino,
+lonDestino
+);
+
+distancia = Math.round(distancia);
+
+document.getElementById("distancia").innerHTML=
+"Estás a "+distancia+" metros de "+lugar;
+
+hablar("Estás a "+distancia+" metros de "+lugar);
+
+});
+
+}
+
+
+
+function calcularDistancia(lat1,lon1,lat2,lon2){
+
+let R=6371000;
+
+let dLat=(lat2-lat1)*Math.PI/180;
+let dLon=(lon2-lon1)*Math.PI/180;
+
+let a=
+Math.sin(dLat/2)*Math.sin(dLat/2)+
+Math.cos(lat1*Math.PI/180)*
+Math.cos(lat2*Math.PI/180)*
+Math.sin(dLon/2)*Math.sin(dLon/2);
+
+let c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+
+return R*c;
+
+}
+
 </script>
 
 </body>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>GPS con Audio</title>
+    <style>
+        body {
+            font-family: Arial;
+            text-align: center;
+        }
+        button {
+            font-size: 20px;
+            padding: 10px 20px;
+        }
+        iframe {
+            width: 90%;
+            height: 400px;
+            border: 2px solid black;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>GPS con Audio</h1>
+
+<button onclick="iniciar()">▶ SABER DÓNDE ESTOY</button>
+
+<p id="texto"></p>
+
+<!-- MAPA -->
+<iframe id="mapa"></iframe>
+
+<script>
+function hablar(texto) {
+    const voz = new SpeechSynthesisUtterance(texto);
+    voz.lang = "es-MX";
+    speechSynthesis.speak(voz);
+}
+
+function iniciar() {
+    hablar("Obteniendo tu ubicación");
+
+    navigator.geolocation.getCurrentPosition(
+        function(posicion) {
+            const lat = posicion.coords.latitude;
+            const lon = posicion.coords.longitude;
+
+            obtenerDireccion(lat, lon);
+            mostrarMapa(lat, lon);
+        },
+        function() {
+            hablar("No se pudo obtener tu ubicación");
+        }
+    );
+}
+
+function obtenerDireccion(lat, lon) {
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
+        .then(res => res.json())
+        .then(data => {
+            const direccion = data.display_name;
+            document.getElementById("texto").innerText = direccion;
+
+            hablar("Te encuentras en");
+            hablar(direccion);
+        });
+}
+
+function mostrarMapa(lat, lon) {
+    const url = `https://www.openstreetmap.org/export/embed.html?bbox=${lon-0.005},${lat-0.005},${lon+0.005},${lat+0.005}&layer=mapnik&marker=${lat},${lon}`;
+    document.getElementById("mapa").src = url;
+}
+</script>
+
+</body>
+</html>

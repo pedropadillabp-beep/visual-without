@@ -2,133 +2,68 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Localizador con Voz</title>
+<title>Asistente de navegación</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
 
 body{
-font-family: Arial;
+font-family:Arial;
+background:linear-gradient(135deg,#c7f7d4,#cfe9ff);
 text-align:center;
-background: linear-gradient(135deg,#c7f7d4,#cfe9ff);
 margin:0;
 }
 
-#inicio{
-margin-top:200px;
-}
-
 button{
-padding:14px 28px;
+padding:12px 25px;
 font-size:18px;
 background:#7edbb5;
 border:none;
 border-radius:10px;
-cursor:pointer;
 margin:8px;
+cursor:pointer;
 }
 
-#app{
-display:none;
-margin-top:40px;
-}
-
-.info{
-font-size:18px;
-margin:5px;
-}
-
-iframe{
+#map{
+height:400px;
 margin-top:20px;
-border-radius:10px;
 }
 
 </style>
+
 </head>
 
 <body>
 
-<div id="inicio">
-
-<h1>🌎 Asistente de ubicación</h1>
-
-<p id="saludo">Di tu nombre</p>
-
-<button onclick="decirNombre()">Decir mi nombre 🎤</button>
-
-<br><br>
-
-<button onclick="empezar()">Empezar</button>
-
-</div>
-
-
-<div id="app">
-
-<h2 id="bienvenida"></h2>
-
-<div class="info" id="direccion"></div>
-
-<br>
+<h2>Asistente GPS</h2>
 
 <button onclick="ubicar()">Saber dónde estoy</button>
 
-<br><br>
-
-<h3>Destino</h3>
-
 <button onclick="decirDestino()">Decir destino 🎤</button>
 
+<div id="direccion"></div>
 <div id="distancia"></div>
 
-<div id="mapa"></div>
+<div id="map"></div>
 
-</div>
-
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
 
-let nombre = "";
 let latUsuario;
 let lonUsuario;
+let map;
+let ruta;
 
-function hablar(texto){
 
-let voz = new SpeechSynthesisUtterance(texto);
+function hablar(t){
+
+let voz = new SpeechSynthesisUtterance(t);
 voz.lang="es-MX";
 speechSynthesis.speak(voz);
 
 }
-
-
-function empezar(){
-
-document.getElementById("inicio").style.display="none";
-document.getElementById("app").style.display="block";
-
-document.getElementById("bienvenida").innerHTML="Hola "+nombre;
-
-}
-
-
-function decirNombre(){
-
-let reconocimiento = new webkitSpeechRecognition();
-reconocimiento.lang="es-MX";
-
-reconocimiento.onresult=function(event){
-
-nombre = event.results[0][0].transcript;
-
-document.getElementById("saludo").innerHTML="Hola "+nombre;
-
-hablar("Hola "+nombre);
-
-}
-
-reconocimiento.start();
-
-}
-
 
 
 function ubicar(){
@@ -138,32 +73,53 @@ navigator.geolocation.getCurrentPosition(function(pos){
 latUsuario = pos.coords.latitude;
 lonUsuario = pos.coords.longitude;
 
-fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latUsuario}&lon=${lonUsuario}&format=json`)
-.then(res => res.json())
-.then(data => {
+obtenerDireccion();
+
+iniciarMapa();
+
+});
+
+}
+
+
+
+function obtenerDireccion(){
+
+fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latUsuario}&lon=${lonUsuario}&format=json&addressdetails=1`)
+.then(r=>r.json())
+.then(data=>{
 
 let d=data.address;
 
-let calle=d.road||"";
+let calle=d.road||"calle desconocida";
 let ciudad=d.city||d.town||d.village||d.municipality||"";
 let estado=d.state||"";
+let cp=d.postcode||"";
 let pais=d.country||"";
 
-let direccion = calle+", "+ciudad+", "+estado+", "+pais;
+let dir = calle+", "+ciudad+", "+estado+", "+cp+", "+pais;
 
-document.getElementById("direccion").innerHTML=direccion;
+document.getElementById("direccion").innerHTML=dir;
 
-hablar("Estás en "+direccion);
-
-
-document.getElementById("mapa").innerHTML=
-`<iframe width="600" height="350"
-src="https://www.openstreetmap.org/export/embed.html?bbox=${lonUsuario-0.01}%2C${latUsuario-0.01}%2C${lonUsuario+0.01}%2C${latUsuario+0.01}&layer=mapnik&marker=${latUsuario}%2C${lonUsuario}">
-</iframe>`;
+hablar("Estás en "+dir);
 
 });
 
-});
+}
+
+
+
+function iniciarMapa(){
+
+map = L.map('map').setView([latUsuario,lonUsuario],16);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+maxZoom:19
+}).addTo(map);
+
+L.marker([latUsuario,lonUsuario]).addTo(map)
+.bindPopup("Tu ubicación")
+.openPopup();
 
 }
 
@@ -171,18 +127,18 @@ src="https://www.openstreetmap.org/export/embed.html?bbox=${lonUsuario-0.01}%2C$
 
 function decirDestino(){
 
-let reconocimiento = new webkitSpeechRecognition();
-reconocimiento.lang="es-MX";
+let rec = new webkitSpeechRecognition();
+rec.lang="es-MX";
 
-reconocimiento.onresult=function(event){
+rec.onresult=function(e){
 
-let destino = event.results[0][0].transcript;
+let destino = e.results[0][0].transcript;
 
 buscarDestino(destino);
 
-}
+};
 
-reconocimiento.start();
+rec.start();
 
 }
 
@@ -191,8 +147,8 @@ reconocimiento.start();
 function buscarDestino(lugar){
 
 fetch(`https://nominatim.openstreetmap.org/search?q=${lugar}&format=json`)
-.then(res => res.json())
-.then(data => {
+.then(r=>r.json())
+.then(data=>{
 
 if(data.length==0){
 
@@ -201,22 +157,10 @@ return;
 
 }
 
-let latDestino = data[0].lat;
-let lonDestino = data[0].lon;
+let latDestino=data[0].lat;
+let lonDestino=data[0].lon;
 
-let distancia = calcularDistancia(
-latUsuario,
-lonUsuario,
-latDestino,
-lonDestino
-);
-
-distancia = Math.round(distancia);
-
-document.getElementById("distancia").innerHTML=
-"Estás a "+distancia+" metros de "+lugar;
-
-hablar("Estás a "+distancia+" metros de "+lugar);
+calcularRuta(latDestino,lonDestino,lugar);
 
 });
 
@@ -224,22 +168,29 @@ hablar("Estás a "+distancia+" metros de "+lugar);
 
 
 
-function calcularDistancia(lat1,lon1,lat2,lon2){
+function calcularRuta(latDestino,lonDestino,lugar){
 
-let R=6371000;
+let url=`https://router.project-osrm.org/route/v1/foot/${lonUsuario},${latUsuario};${lonDestino},${latDestino}?overview=full&geometries=geojson`;
 
-let dLat=(lat2-lat1)*Math.PI/180;
-let dLon=(lon2-lon1)*Math.PI/180;
+fetch(url)
+.then(r=>r.json())
+.then(data=>{
 
-let a=
-Math.sin(dLat/2)*Math.sin(dLat/2)+
-Math.cos(lat1*Math.PI/180)*
-Math.cos(lat2*Math.PI/180)*
-Math.sin(dLon/2)*Math.sin(dLon/2);
+let dist = data.routes[0].distance;
+dist = Math.round(dist);
 
-let c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+document.getElementById("distancia").innerHTML=
+"Estás a "+dist+" metros de "+lugar;
 
-return R*c;
+hablar("Estás a "+dist+" metros de "+lugar);
+
+if(ruta) map.removeLayer(ruta);
+
+ruta=L.geoJSON(data.routes[0].geometry).addTo(map);
+
+map.fitBounds(ruta.getBounds());
+
+});
 
 }
 
